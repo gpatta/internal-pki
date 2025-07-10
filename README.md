@@ -1,6 +1,6 @@
 # Internal PKI
 
-This project aims to lay the foundation for an **internal certificate infrastructure** suitable for a small/medium-sized company. Key points of the project:
+This project aims to lay the foundation for an **internal certificate infrastructure** suitable for a small/medium-sized organization. Key points of the project:
 
 - **Internal PKI** using OpenSSL toolkit for generating CAs, issuing and signing certificates; possible upgrade could be [Smallstep](https://smallstep.com/), open-source CA designed to be an online internal intermediate CA;
 - **Password manager** for secure password and key storage;
