@@ -1,0 +1,61 @@
+services:
+  # Define our Node.js server service
+  tls-server:
+    # Tell Compose to build the image from the Dockerfile in the current directory
+    build: .
+    # Give the running container a friendly name
+    container_name: tls-server
+    # Set a restart policy to automatically restart the container if it crashes
+    restart: unless-stopped
+
+    # Set environment variables for the container
+    environment:
+      - PORT=${PORT}
+      - SERVER_KEY_PATH=/run/secrets/server_key
+      - SERVER_CERT_PATH=/run/secrets/server_cert
+      - CA_CERT_PATH=/run/secrets/ca_cert
+
+    # Map the host port 8443 to the container port 8443
+    ports:
+      - "5060:${PORT}"
+
+    networks:
+      - my_net
+
+    secrets: 
+      - source: server_key
+        target: server_key
+        # uid: '100'
+        # gid: '101'
+        # mode: 0400
+      - source: server_cert
+        target: server_cert
+        # uid: '100'
+        # gid: '101'
+        # mode: 0400
+      - source: ca_cert
+        target: ca_cert
+        # uid: '100'
+        # gid: '101'
+        # mode: 0400
+
+    # Define volumes to persist data
+    volumes:
+      - received:/usr/src/app/uploads
+
+# Define where to find the secrets on the host machine
+secrets:
+  server_key:
+    file: ./certs/localhost.key.pem
+  server_cert:
+    file: ./certs/localhost.chain.cert.pem
+  ca_cert:
+    file: ./certs/ca.cert.pem
+
+# Define the named volume used by our service
+volumes:
+  received:
+
+networks:
+  my_net:
+    driver: bridge

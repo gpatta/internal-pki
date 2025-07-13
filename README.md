@@ -128,4 +128,5 @@ The client app is built to be very flexible and to be used in almost any system.
 
 - `cd node-server`
 - `sudo docker build -t node-server .`
-- `sudo docker run --name node-server -p 5060:5060 -v "$(pwd)/received":/uploads -v "$(pwd)/certs":/certs:ro node-server`
+- `sudo docker run --name node-server -p 5060:5060 -v "$(pwd)/received":/received -v "$(pwd)/certs":/certs:ro node-server`
+- To run the dockerized app: `docker-compose up --build -d`

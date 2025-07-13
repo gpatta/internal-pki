@@ -21,6 +21,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/select.h>
+// #include <signal.h>
 #include <zlib.h>
 // #include <bzlib.h>
 
@@ -48,7 +49,7 @@ void check_certificate_dates(X509 *cert);
 const char* x509_error_string(long error_code);
 void print_ssl_error(SSL *ssl, long verify_result);
 void compress_file(const char *input_file, const char *output_file, int compression_type);
-void send_file(SSL *ssl, const char *filename);
+int send_file(SSL *ssl, const char *filename);
 size_t get_file_size(const char *filename);
 int is_regular_file(const char *path);
 void move_file_to_sent(const char *filepat,const char *sent_folder);
@@ -56,7 +57,7 @@ int connect_with_timeout(int sock, const struct sockaddr *addr, socklen_t addrle
  
 
 int main(int argc, char *argv[]) {
-    
+
     // Configuration variables
     const char *ip = IP_LOCAL;
     int port = PORT;
@@ -66,7 +67,7 @@ int main(int argc, char *argv[]) {
     fprintf(stdout, "[INFO] Starting Secure File Transfer Client\n");
 
     // Command-line argument parsing
-    fprintf(stdout, "[INFO] Parsing command-line arguments\n");
+    // fprintf(stdout, "[INFO] Parsing command-line arguments\n");
     
     if (argc > 5) {
         fprintf(stderr, "[ERROR] Too many arguments provided. Usage: %s [IP] [Port] [Sync Folder] [--compress]\n", argv[0]);
@@ -77,6 +78,39 @@ int main(int argc, char *argv[]) {
         base_path = argv[3];
         
         fprintf(stdout, "[INFO] Using IP: %s, Port: %d, Sync Folder: %s\n", ip, port, base_path);
+
+        // Handle compression option
+        if (argc == 5) {
+            // fprintf(stdout, "[INFO] Checking compression option: %s\n", argv[4]);
+
+            if (strcmp(argv[4], "--compress") == 0 || strcmp(argv[4], "--compress=gzip") == 0) {
+                use_compression = 1;
+                fprintf(stdout, "[INFO] Compression enabled (gzip)\n");
+            } else {
+                fprintf(stderr, "[ERROR] Invalid compression option\n");
+                return EXIT_FAILURE;
+            }
+
+            // if (strcmp(argv[4], "--no-compress") == 0) {
+            //     use_compression = 0;
+            //     fprintf(stdout, "[INFO] Compression disabled\n");
+            // } else if (strncmp(argv[4], "--compress=", 11) == 0) {
+            //     const char *type = argv[4] + 11;
+            //     if (strcmp(type, "gzip") == 0) {
+            //         use_compression = 1;
+            //         fprintf(stdout, "[INFO] Compression set to gzip\n");
+            //     } else if (strcmp(type, "bz2") == 0) {
+            //         use_compression = 2;
+            //         fprintf(stdout, "[INFO] Compression set to bz2\n");
+            //     } else {
+            //         fprintf(stderr, "[ERROR] Invalid compression type: %s\n", type);
+            //         return EXIT_FAILURE;
+            //     }
+            // }
+        } else {
+            fprintf(stdout, "[INFO] Compression disabled\n");
+        }
+
     } else {
         fprintf(stdout, "[INFO] Using default values - IP: %s, Port: %d, Sync Folder: %s\n", ip, port, base_path);
     }
@@ -87,61 +121,34 @@ int main(int argc, char *argv[]) {
     snprintf(sync_folder, sizeof(sync_folder), "%s/to-send", base_path);
     snprintf(sent_folder, sizeof(sent_folder), "%s/sent", base_path);
 
-    printf("[INFO] Cartella file da inviare: %s\n", sync_folder);
-    printf("[INFO] Cartella file inviati: %s\n", sent_folder);
-    printf("[INFO] Cartella file certificati: %s\n", CERTIFICATE_PATH);
+    // printf("[INFO] To send files folder: %s\n", sync_folder);
+    // printf("[INFO] Sent files folder: %s\n", sent_folder);
+    // printf("[INFO] Certificates folder: %s\n", CERTIFICATE_PATH);
 
-    // Handle compression option
-    if (argc == 5) {
-        fprintf(stdout, "[INFO] Checking compression option: %s\n", argv[4]);
-
-        if (strcmp(argv[4], "--compress") == 0 || strcmp(argv[4], "--compress=gzip") == 0) {
-            use_compression = 1;
-            fprintf(stdout, "[INFO] Compression enabled (gzip)\n");
-        } else {
-            fprintf(stderr, "[ERROR] Invalid compression option\n");
-            return EXIT_FAILURE;
-        }
-
-        // if (strcmp(argv[4], "--no-compress") == 0) {
-        //     use_compression = 0;
-        //     fprintf(stdout, "[INFO] Compression disabled\n");
-        // } else if (strncmp(argv[4], "--compress=", 11) == 0) {
-        //     const char *type = argv[4] + 11;
-        //     if (strcmp(type, "gzip") == 0) {
-        //         use_compression = 1;
-        //         fprintf(stdout, "[INFO] Compression set to gzip\n");
-        //     } else if (strcmp(type, "bz2") == 0) {
-        //         use_compression = 2;
-        //         fprintf(stdout, "[INFO] Compression set to bz2\n");
-        //     } else {
-        //         fprintf(stderr, "[ERROR] Invalid compression type: %s\n", type);
-        //         return EXIT_FAILURE;
-        //     }
-        // }
-    }
+    
 
     // Create 'sent' folder if it doesn't exist
     struct stat st = {0};
-    fprintf(stdout, "[INFO] Checking if 'sent' folder exists\n");
+    // fprintf(stdout, "[INFO] Checking if 'sent' folder exists\n");
     if (stat(sent_folder, &st) == -1) {
         fprintf(stdout, "[INFO] Creating 'sent' folder\n");
         mkdir(sent_folder, 0700);
-    } else {
-        fprintf(stdout, "[INFO] 'sent' folder already exists\n");
-    }
+    } 
+    // else {
+    //     fprintf(stdout, "[INFO] 'sent' folder already exists\n");
+    // }
 
     // Check if sync folder exists and if are there files to send
     DIR *d;
     int has_files = 0;
     struct dirent *dir;
 
-    fprintf(stdout, "[INFO] Opening sync folder: %s\n", sync_folder);
+    // fprintf(stdout, "[INFO] Opening sync folder: %s\n", sync_folder);
     if ((d = opendir(sync_folder)) == NULL) {
         fprintf(stderr, "[ERROR] Failed to open sync folder: %s\n", sync_folder);
         return EXIT_FAILURE;
     }
-    fprintf(stdout, "[INFO] Sync folder opened successfully\n");
+    // fprintf(stdout, "[INFO] Sync folder opened successfully\n");
 
     while ((dir = readdir(d)) != NULL) {
         if (strcmp(dir->d_name, ".") == 0 || strcmp(dir->d_name, "..") == 0) continue;
@@ -261,26 +268,31 @@ int main(int argc, char *argv[]) {
         if (is_regular_file(filepath)) {
             fprintf(stdout, "[INFO] Processing file: %s\n", filepath);
             char compressed_filename[BUFFER_SIZE];
+            char *send_filename;
 
-            if (use_compression == 1) {
+            if (use_compression > 0) {
                 snprintf(compressed_filename, sizeof(compressed_filename), "%s.gz", filepath);
                 fprintf(stdout, "[INFO] Compressing file with gzip to: %s\n", compressed_filename);
                 compress_file(filepath, compressed_filename, use_compression);
-                fprintf(stdout, "[INFO] Sending compressed file: %s\n", compressed_filename);
-                send_file(ssl, compressed_filename);
-                remove(compressed_filename);
-                fprintf(stdout, "[INFO] Temporary compressed file removed\n");
-            // } else if (use_compression == 2) {
-            //     snprintf(compressed_filename, sizeof(compressed_filename), "%s.bz2", filepath);
-            //     fprintf(stdout, "[INFO] Compressing file with bz2 to: %s\n", compressed_filename);
-            //     compress_file(filepath, compressed_filename, use_compression);
-            //     fprintf(stdout, "[INFO] Sending compressed file: %s\n", compressed_filename);
-            //     send_file(ssl, compressed_filename);
-            //     remove(compressed_filename);
-            //     fprintf(stdout, "[INFO] Temporary compressed file removed\n");
+                send_filename = compressed_filename;
             } else {
-                fprintf(stdout, "[INFO] Sending uncompressed file: %s\n", filepath);
-                send_file(ssl, filepath);
+                send_filename = filepath;
+            }
+
+            fprintf(stdout, "[INFO] Sending file: %s\n", send_filename);
+            if (send_file(ssl, send_filename)) {
+                fprintf(stderr, "[ERROR] Failed to send file: %s\n", send_filename);
+                if (use_compression > 0) {
+                    remove(compressed_filename); // Remove compressed file on error
+                }
+                continue; // Skip to next file
+            } else {
+                fprintf(stdout, "[INFO] File %s sent successfully\n", send_filename);
+            }
+
+            if (use_compression > 0) {
+                remove(compressed_filename);
+                // fprintf(stdout, "[INFO] Temporary compressed file removed\n");
             }
 
             fprintf(stdout, "[INFO] Moving file to 'sent' folder\n");
@@ -415,34 +427,72 @@ void check_certificate_dates(X509 *cert) {
  }
  
  /* Invia un file attraverso la connessione SSL */
-void send_file(SSL *ssl, const char *filename) {
+int send_file(SSL *ssl, const char *filename) {
+
     size_t filesize = get_file_size(filename);
+    char *header_buffer = NULL;
+
+    // Create metadata header
+    uint8_t filename_len = strlen(filename);
+    if (strlen(filename) > 255) {
+        fprintf(stderr, "[ERROR] Filename is too long (max 255 bytes).\n");
+        return -1;
+    }
+
+    // Allocate memory for the header buffer
+    uint32_t message_len = 1 + filename_len + 8;
+    size_t header_size = 4 + message_len;
+    header_buffer = (char*)malloc(header_size);
+    if (header_buffer == NULL) {
+        fprintf(stderr, "[ERROR] Failed to allocate %zx bytes of memory for header.\n", header_size);
+        return -1;
+    }
+
+    // --- Pack the data into the buffer ---
+    char* ptr = header_buffer;
+    uint32_t message_len_be = htonl(message_len); // Host To Network Long
+    memcpy(ptr, &message_len_be, 4);
+    ptr += 4;
+
+    *ptr = filename_len;    // Length of the filename (1 byte)
+    ptr++;
+
+    memcpy(ptr, filename, filename_len);    // Copy the filename into the buffer
+    ptr += filename_len;
+
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+    uint64_t file_size_be = __builtin_bswap64(filesize);
+#else
+    uint64_t file_size_be = filesize;
+#endif
+    memcpy(ptr, &file_size_be, 8);  // Copy the file size into the buffer
+
+    fprintf(stdout, "[INFO] Sending metadata for file: %s (size: %lu bytes)\n", filename, filesize);
+    if (SSL_write(ssl, header_buffer, header_size) <= 0) {
+        fprintf(stderr, "[ERROR] Failed to send metadata for %s\n", filename);
+        return -1;
+        // exit(EXIT_FAILURE);
+    }
+    fprintf(stdout, "[INFO] Metadata sent successfully\n");
+
+    char ack[2] = {0};
+    int ret = SSL_read(ssl, ack, 2);
+
+    if (ret <= 0 || strcmp(ack, "a") != 0) {
+        fprintf(stderr, "[ERROR] Metadata ACK failed for %s\n", filename);
+        return -2;
+    }
+    fprintf(stdout, "[INFO] Metadata ACK received: %s\n", ack);
+
     char buffer[BUFFER_SIZE] = {0};
     const size_t LOG_INTERVAL = 1 * 1024 * 1024; // 1 MB in byte
     size_t last_logged = 0; // Ultimo punto in cui è stato stampato un messaggio
 
-    fprintf(stdout, "[INFO] Preparing to send file: %s (size: %lu bytes)\n", filename, filesize);
-    snprintf(buffer, sizeof(buffer), "%s:%lu", filename, filesize);
-    int msg_len = strlen(buffer);
-
-    fprintf(stdout, "[INFO] Sending metadata: %s\n", buffer);
-    if (SSL_write(ssl, &msg_len, sizeof(int)) <= 0 || SSL_write(ssl, buffer, msg_len) <= 0) {
-        fprintf(stderr, "[ERROR] Failed to send metadata for %s\n", filename);
-        exit(EXIT_FAILURE);
-    }
-    fprintf(stdout, "[INFO] Metadata sent successfully\n");
-
-    char ack[4] = {0};
-    if (SSL_read(ssl, ack, 3) <= 0 || strcmp(ack, "ACK") != 0) {
-        fprintf(stderr, "[ERROR] Metadata ACK failed for %s\n", filename);
-        return;
-    }
-    fprintf(stdout, "[INFO] Metadata ACK received: %s\n", ack);
-
     FILE *file = fopen(filename, "rb");
     if (!file) {
         fprintf(stderr, "[ERROR] Failed to open file: %s\n", filename);
-        exit(EXIT_FAILURE);
+        return -3;
+        // exit(EXIT_FAILURE);
     }
     fprintf(stdout, "[INFO] File %s opened for sending\n", filename);
 
@@ -455,7 +505,7 @@ void send_file(SSL *ssl, const char *filename) {
             if (sent <= 0) {
                 fprintf(stderr, "[ERROR] SSL write error while sending %s\n", filename);
                 fclose(file);
-                return;
+                return -4;
             }
             bytes_sent += sent;
 
@@ -470,14 +520,17 @@ void send_file(SSL *ssl, const char *filename) {
     fclose(file);
     fprintf(stdout, "[INFO] File %s sent successfully\n", filename);
 
-    char end_ack[4] = {0};
-    int read_ret = SSL_read(ssl, end_ack, 3);
+    char end_ack[2] = {0};
+    int read_ret = SSL_read(ssl, end_ack, 2);
     if (read_ret <= 0) {
         fprintf(stderr, "[ERROR] Failed to receive end ACK for %s\n", filename);
         ERR_print_errors_fp(stderr);
+        return -5;
     } else {
         fprintf(stdout, "[INFO] End ACK received: %s\n", end_ack);
     }
+
+    return 0;
 }
  
  /* Funzione per la compressione dei file */
@@ -615,14 +668,14 @@ void send_file(SSL *ssl, const char *filename) {
      SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1);
  
      // Load client cert and key
-     fprintf(stdout, "[DEBUG] Tentativo di caricare il certificato del client da: %s\n", CLIENT_CERT_PATH);
+    //  fprintf(stdout, "[DEBUG] Tentativo di caricare il certificato del client da: %s\n", CLIENT_CERT_PATH);
      if (SSL_CTX_use_certificate_file(ctx, CLIENT_CERT_PATH, SSL_FILETYPE_PEM) <= 0) {
         fprintf(stderr,"Unable to load SSL certificate");
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
      }
      
-     fprintf(stdout, "[DEBUG] Tentativo di caricare la chiave privata del client da: %s\n", CLIENT_KEY_PATH);
+    //  fprintf(stdout, "[DEBUG] Tentativo di caricare la chiave privata del client da: %s\n", CLIENT_KEY_PATH);
      if (SSL_CTX_use_PrivateKey_file(ctx, CLIENT_KEY_PATH, SSL_FILETYPE_PEM) <= 0) {
         fprintf(stderr,"Unable to load SSL key client");
         ERR_print_errors_fp(stderr);
@@ -631,7 +684,7 @@ void send_file(SSL *ssl, const char *filename) {
  
      // Configura la verifica del certificato server
      SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
-     fprintf(stdout, "[DEBUG] Tentativo di caricare il certificato CA per la verifica del server da: %s\n", CA_CERT_PATH);
+    //  fprintf(stdout, "[DEBUG] Tentativo di caricare il certificato CA per la verifica del server da: %s\n", CA_CERT_PATH);
      if (SSL_CTX_load_verify_locations(ctx, CA_CERT_PATH, NULL) <= 0) {
         fprintf(stderr, "Unable to load CA certificate from %s\n", CA_CERT_PATH);
         ERR_print_errors_fp(stderr);

@@ -1,0 +1,6 @@
+node_modules
+npm-debug.log
+received
+certs
+.env
+.DS_Store
