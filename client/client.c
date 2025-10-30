@@ -656,7 +656,7 @@ int send_file(SSL *ssl, const char *filename) {
  
  /* Crea e configura il contesto SSL per il client */
  SSL_CTX *create_ssl_context() {
-     const SSL_METHOD *method = SSLv23_client_method();  // Dobbiamo usare questo perche in centralina c'è openssl 1.0.2
+     const SSL_METHOD *method = SSLv23_client_method();  // Use Openssl 1.0.2 for legacy system contstraint
      SSL_CTX *ctx = SSL_CTX_new(method);
      
      if (!ctx) {
